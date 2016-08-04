@@ -1,0 +1,3 @@
+[submodule "kos"]
+	path = kos
+	url = https://puchinya@github.com/puchinya/kos.git
