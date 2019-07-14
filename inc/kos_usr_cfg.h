@@ -12,6 +12,7 @@
 #define KOS_MAX_FLG					16
 #define KOS_MAX_DTQ					16
 #define KOS_MAX_CYC					16
+#define KOS_MAX_MTX					16
 #define KOS_MAX_INTNO				82
 #define KOS_DLY_SVC_FIFO_LEN		32
 #define KOS_SYSMPL_SIZE				(1<<10)			/* OS用メモリプールのサイズ */

@@ -53,16 +53,19 @@
 ENTRY(Reset_Handler)
 
 /* Highest address of the user mode stack */
-_estack = 0x20050000;    /* end of RAM */
-
-_Min_Heap_Size = 0;      /* required amount of heap  */
-_Min_Stack_Size = 0x400; /* required amount of stack */
+_eheap = 0x20050000;    /* end of RAM */
+_Stack_Size = 0x400; /* required amount of stack */
+_Min_Heap_Size = 0x1000;
 
 /* Memories definition */
 MEMORY
 {
-  RAM (xrw)		: ORIGIN = 0x20000000, LENGTH = 320K
   ROM (rx)		: ORIGIN = 0x8000000, LENGTH = 1024K
+  RAM (xrw)        : ORIGIN = 0x20003CC8, LENGTH = 320K
+  Memory_B1(xrw)   : ORIGIN = 0x20000000, LENGTH = 0xA0
+  Memory_B2(xrw)   : ORIGIN = 0x200000A0, LENGTH = 0xA0
+  Memory_B3(xrw)   : ORIGIN = 0x20000140, LENGTH = 0x1dc4 
+  Memory_B4(xrw)   : ORIGIN = 0x20001F04, LENGTH = 0x1dc4
 }
 
 /* Sections */
@@ -183,8 +186,12 @@ SECTIONS
     . = ALIGN(8);
     PROVIDE ( end = . );
     PROVIDE ( _end = . );
+    _sstack = .;
+    . = . + _Stack_Size;
+    . = ALIGN(8);
+    _estack = .;
+    _sheap = .;
     . = . + _Min_Heap_Size;
-    . = . + _Min_Stack_Size;
     . = ALIGN(8);
   } >RAM
 
@@ -199,4 +206,8 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+  .RxDescripSection : { *(.RxDescripSection) } >Memory_B1
+  .TxDescripSection : { *(.TxDescripSection) } >Memory_B2
+  .RxBUF : { *(.RxBUF) } >Memory_B3
+  .TxBUF : { *(.TxBUF) } >Memory_B4 
 }

@@ -52,6 +52,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f7xx_hal.h"
+#include <cmsis_os.h>
 
 /** @addtogroup STM32F7xx_HAL_Driver
   * @{
@@ -162,7 +163,7 @@ HAL_StatusTypeDef HAL_Init(void)
   HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
 
   /* Use systick as time base source and configure 1ms tick (default clock after Reset is HSI) */
-  HAL_InitTick(TICK_INT_PRIORITY);
+//  HAL_InitTick(TICK_INT_PRIORITY);
   
   /* Init the low level hardware */
   HAL_MspInit();
@@ -300,7 +301,7 @@ __weak void HAL_IncTick(void)
   */
 __weak uint32_t HAL_GetTick(void)
 {
-  return uwTick;
+  return osKernelSysTick();
 }
 
 /**
@@ -316,11 +317,7 @@ __weak uint32_t HAL_GetTick(void)
   */
 __weak void HAL_Delay(__IO uint32_t Delay)
 {
-  uint32_t tickstart = 0;
-  tickstart = HAL_GetTick();
-  while((HAL_GetTick() - tickstart) < Delay)
-  {
-  }
+	osDelay(Delay);
 }
 
 /**
@@ -336,7 +333,7 @@ __weak void HAL_Delay(__IO uint32_t Delay)
 __weak void HAL_SuspendTick(void)
 {
   /* Disable SysTick Interrupt */
-  SysTick->CTRL &= ~SysTick_CTRL_TICKINT_Msk;
+//  SysTick->CTRL &= ~SysTick_CTRL_TICKINT_Msk;
 }
 
 /**
@@ -352,7 +349,7 @@ __weak void HAL_SuspendTick(void)
 __weak void HAL_ResumeTick(void)
 {
   /* Enable SysTick Interrupt */
-  SysTick->CTRL  |= SysTick_CTRL_TICKINT_Msk;
+//  SysTick->CTRL  |= SysTick_CTRL_TICKINT_Msk;
 }
 
 /**
