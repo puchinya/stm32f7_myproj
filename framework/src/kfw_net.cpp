@@ -4,6 +4,7 @@
 #include "kfw_rtos.hpp"
 #include <lwip/dhcp.h>
 #include <lwip/igmp.h>
+#include <lwip/api.h>
 
 namespace kfw { namespace net
 {
@@ -371,12 +372,12 @@ void SocketStream::close()
 	m_socket.disconnect();
 }
 
-RetVal<uint32_t> SocketStream::read(void *buf, size_t size)
+RetVal<uint32_t> SocketStream::read(void *buf, uint32_t size)
 {
 	return m_socket.recv(buf, size);
 }
 
-RetVal<uint32_t> SocketStream::write(const void *buf, size_t size)
+RetVal<uint32_t> SocketStream::write(const void *buf, uint32_t size)
 {
 	return m_socket.send(buf, size);
 }

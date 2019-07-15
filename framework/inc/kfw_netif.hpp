@@ -1,43 +1,59 @@
 
 #pragma once
 
-#include <kfw_common.hpp>
-#include <kfw_net.hpp>
+#include <kfw_net_common.hpp>
+#include <kfw_callback.hpp>
 
 namespace kfw { namespace net { namespace intf {
-	class IEMACInterface;
+
+	class NetworkInterface;
 
 	enum class ConnectionStatus
 	{
-		kLocalUp,
-		kGlobalUp,
 		kDisconnected,
-		kConnecting
+		kConnecting,
+		kConnected,
 	};
 
-	interface IEMACInterfaceEventListener
+	interface INetworkInterfaceEventListener
 	{
-	protected:
-		IEMACInterfaceEventListener() {}
 	public:
-		virtual ~IEMACInterfaceEventListener() {}
-		virtual void on_link_up(IEMACInterface *sender) = 0;
-		virtual void on_link_down(IEMACInterface *sender) = 0;
-		virtual void on_up(IEMACInterface *sender) = 0;
-		virtual void on_down(IEMACInterface *sender) = 0;
+		virtual ~INetworkInterfaceEventListener() {}
+		virtual void on_link_chnaged(NetworkInterface *sender) = 0;
+		virtual void on_status_changed(NetworkInterface *sender) = 0;
 	};
 
-	interface IEMACInterface
+	class NetworkInterface : private NonCopyable
 	{
 	public:
-		virtual ~IEMACInterface() {}
-		ret_t set_event_listener(IEMACInterfaceEventListener *p_listener);
-		virtual ret_t set_use_dhcp(bool value) = 0;
-		virtual ret_t get_use_dhcp(bool &value) = 0;
+		virtual ~NetworkInterface();
+
+		ret_t add_event_listener(INetworkInterfaceEventListener *listener);
+
+		ret_t remove_event_listener(INetworkInterfaceEventListener *listener);
+
+		ret_t set_use_dhcp(bool value)
+		{
+			m_use_dhcp = value;
+			return kOk;
+		}
+		ret_t get_use_dhcp(bool &value)
+		{
+			value = m_use_dhcp;
+			return kOk;
+		}
+
 		virtual ret_t get_ip(IPAddress &value) = 0;
 		virtual ret_t connect() = 0;
 		virtual ret_t disconnect() = 0;
 		virtual ConnectionStatus get_connection_status() = 0;
+	protected:
+		NetworkInterface();
+
+		void fire_link_changed();
+		void fire_status_changed();
+
+		bool m_use_dhcp;
 	};
 
 };};};

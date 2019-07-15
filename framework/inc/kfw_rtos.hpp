@@ -86,12 +86,18 @@ namespace kfw { namespace rtos {
 		mutex_handle_t m_handle;
 	};
 
+	/**
+	 *
+	 */
 	enum class EventFlagsWaitMode : MODE
 	{
 		kAnd = TWF_ANDW,
 		kOr = TWF_ORW
 	};
 
+	/**
+	 *
+	 */
 	class EventFlags final : private NonCopyable
 	{
 	public:
@@ -117,6 +123,33 @@ namespace kfw { namespace rtos {
 		ret_t ser_isr(uint32_t pattern);
 	private:
 		eventflag_handle_t m_handle;
+	};
+
+	class MemoryPool final : private NonCopyable
+	{
+	public:
+		MemoryPool();
+		~MemoryPool();
+
+		ret_t create(uint32_t block_size, uint32_t block_count);
+		ret_t dispose();
+
+		ret_t get(void **block, timeout_t timeout_ms = kTimeoutInfinity);
+		ret_t release(void *block);
+
+		uint32_t get_block_size() const;
+	};
+
+	class DataQueue final : private NonCopyable
+	{
+	public:
+		ret_t create(uint32_t ququ_count);
+		ret_t dispose();
+
+		ret_t send(uintptr_t data, timeout_t timeout_ms = kTimeoutInfinity);
+		ret_t recv(uintptr_t &data, timeout_t timeout_ms = kTimeoutInfinity);
+	private:
+		ID m_handle;
 	};
 
 	class ThreadContext final : private NonCopyable

@@ -74,6 +74,7 @@ namespace kfw { namespace net { namespace intf { namespace stm {
 			dhcp_stop(&m_netif);
 			dhcp_cleanup(&m_netif);
 		}
+
 		netif_remove(&m_netif);
 
 		return kOk;
@@ -81,10 +82,18 @@ namespace kfw { namespace net { namespace intf { namespace stm {
 
 	ConnectionStatus STMEhternetInterface::get_connection_status()
 	{
-		if(m_netif.ip_addr.addr != 0) {
-			return ConnectionStatus::kLocalUp;
+		if(netif_is_link_up(&m_netif)) {
+			if(m_use_dhcp) {
+				if(m_netif.ip_addr.addr != 0) {
+					return ConnectionStatus::kConnected;
+				}
+				return ConnectionStatus::kConnecting;
+			} else {
+				return ConnectionStatus::kConnected;
+			}
+		} else {
+			return ConnectionStatus::kDisconnected;
 		}
-		return ConnectionStatus::kDisconnected;
 	}
 
 };};};};

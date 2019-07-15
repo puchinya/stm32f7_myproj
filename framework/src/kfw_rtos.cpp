@@ -297,7 +297,7 @@ ret_t ThreadContext::create(const Callback<void()> &func, priority_t priority,
 
 	ctsk.tskatr = TA_HLNG;
 	ctsk.itskpri = priority;
-	ctsk.stk = (void *)aligned_mem;
+	ctsk.stk = (VP)aligned_mem;
 	ctsk.stksz = aligned_size;
 	ctsk.exinf = (VP_INT)this;
 	ctsk.task = (FP)&ThreadContext::entry_point;

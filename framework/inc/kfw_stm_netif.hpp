@@ -8,17 +8,9 @@
 
 namespace kfw { namespace net { namespace intf { namespace stm {
 
-	class STMEhternetInterface : public IEMACInterface
+	class STMEhternetInterface : public NetworkInterface
 	{
 	public:
-		ret_t set_use_dhcp(bool value) override {
-			m_use_dhcp = value;
-			return kOk;
-		}
-		ret_t get_use_dhcp(bool &value) override {
-			value = m_use_dhcp;
-			return kOk;
-		}
 		ret_t get_ip(IPAddress &value) override;
 		ret_t connect() override;
 		ret_t disconnect() override;

@@ -58,6 +58,33 @@ namespace kfw {
 
 	void kfw_assert(const char *msg);
 	void kfw_die();
+
+	class ConstStringRef final
+	{
+	public:
+		explicit ConstStringRef(const char8_t *c_str)
+		{
+			m_data = c_str;
+			m_length = strlen(c_str);
+		}
+
+		ConstStringRef(const char8_t *data, uint32_t length) :
+			m_data(data), m_length(length)
+		{
+		}
+
+		const char8_t *get_data() const {
+			return m_data;
+		}
+		const uint32_t get_length() const {
+			return m_length;
+		}
+	private:
+		const char8_t	*m_data;
+		uint32_t		m_length;
+	};
+
+	class String;
 };
 
 #endif

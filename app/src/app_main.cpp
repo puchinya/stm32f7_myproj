@@ -10,67 +10,11 @@ using namespace kfw::net;
 using namespace kfw::net::intf;
 using namespace kfw::net::intf::stm;
 using namespace kfw::rtos;
+using namespace kfw::io;
 
-#if 0
 class String final
 {
 public:
-
-};
-
-class StringBuffer final : private NonCopyable
-{
-public:
-	StringBuffer(size_t capacity);
-	~StringBuffer();
-
-	char8_t at(uint32_t index) const {
-		if(index >= m_length) {
-			kfw_system_error(kEIndexOutOfRange);
-		}
-		return m_data[index];
-	}
-
-	ret_t append(int ch);
-private:
-	size_t		m_capacity;
-	size_t		m_length;
-	char8_t		*m_data;
-};
-
-StringBuffer::StringBuffer(size_t capacity)
-{
-	char8_t *mem = new char8_t[capacity];
-
-	m_capacity = capacity;
-	m_length = 0;
-	m_data = mem;
-}
-
-StringBuffer::~StringBuffer()
-{
-	if(m_data != nullptr) {
-		delete [] m_data;
-		m_data = nullptr;
-	}
-}
-
-ret_t StringBuffer::append(int ch)
-{
-	if(m_length >- m_capacity)
-		return kEOutOfMemory;
-	m_data[m_length++] = (char8_t)ch;
-
-	return kOk;
-}
-
-class HttpRequest
-{
-
-};
-
-class HttpResponse
-{
 
 };
 
@@ -78,30 +22,6 @@ class HttpResponse
 #define CFG_HTTP_LISTENER_MAX_
 
 
-class ConstStringRef final
-{
-public:
-	explicit ConstStringRef(const char8_t *c_str)
-	{
-		m_data = c_str;
-		m_length = strlen(c_str);
-	}
-
-	ConstStringRef(const char8_t *data, uint32_t length) :
-		m_data(data), m_length(length)
-	{
-	}
-
-	const char8_t *get_data() const {
-		return m_data;
-	}
-	const uint32_t get_length() const {
-		return m_length;
-	}
-private:
-	const char8_t	*m_data;
-	uint32_t		m_length;
-};
 
 class StringRef final
 {
@@ -125,173 +45,7 @@ private:
 	uint32_t	m_length;
 };
 
-class HttpListenerHeaderItem
-{
-private:
-	ConstStringRef	m_name;
-	ConstStringRef	m_value;
-};
 
-class HttpListenerHeader
-{
-private:
-
-	uint8_t	m_header_buffer[CFG_HTTP_LISTENER_MAX_HEADER_BUF_SIZE];
-};
-
-class HttpListenerContext
-{
-private:
-	Socket m_com_soc;
-	HttpListenerContext(Socket &soc);
-public:
-	HttpListenerContext();
-	HttpRequest &get_request();
-	HttpResponse &get_response();
-};
-
-class HttpListener final : private kfw::NonCopyable
-{
-public:
-	HttpListener(): m_soc(), m_port(0), m_req_quit(false), m_is_started(false) {}
-	~HttpListener() {
-		dispose();
-	}
-
-	ret_t create();
-	void dispose();
-
-	ret_t start(uint32_t port = 80);
-	ret_t stop();
-
-	ret_t get_context(HttpListenerContext &ctx);
-private:
-	Socket		m_soc;
-	uint32_t	m_port;
-	bool		m_req_quit;
-	bool		m_is_started;
-	void thread_main();
-};
-
-ret_t HttpListener::create()
-{
-	ret_t r = m_soc.open(SocketType::kTCP);
-	return r;
-}
-
-void HttpListener::dispose()
-{
-	m_soc.close();
-}
-
-ret_t HttpListener::start(uint32_t port)
-{
-	if(m_is_started) {
-		return kEInvalidOperation;
-	}
-
-	m_port = port;
-
-	auto &soc = m_soc;
-
-	ret_t r = soc.bind(SocketAddress(IPAddress::get_Loopback(), m_port));
-	if(r != kOk) {
-		return r;
-	}
-	r = soc.listen(16);
-	if(r != kOk) {
-		return r;
-	}
-
-	m_is_started = true;
-
-	return kOk;
-}
-
-class BufferedStream final : public kfw::io::Stream
-{
-public:
-	BufferedStream();
-
-	ret_t create(kfw::io::Stream *base_stream, uint8_t *buffer, uint32_t buffet_size);
-	void dispose();
-	int read_byte();
-private:
-	kfw::io::Stream *m_base_stream;
-	uint8_t *m_buffer;
-	uint32_t m_buffer_size;
-};
-
-ret_t read_line(BufferedStream &s, StringBuffer &line)
-{
-	for(;;) {
-		int b = s.read_byte();
-		if(b == '¥r') {
-			int b2 = s.read_byte();
-			if(b2 == '¥n') {
-				break;
-			}
-
-			ret_t r = line.append(b);
-			if(is_failed(r)) {
-				return r;
-			}
-
-			ret_t r = line.append(b2);
-			if(is_failed(r)) {
-				return r;
-			}
-		} else {
-			ret_t r = line.append(b);
-			if(is_failed(r)) {
-				return r;
-			}
-		}
-	}
-
-	return kOk;
-}
-
-ret_t HttpListener::get_context(HttpListenerContext &ctx)
-{
-	// ソケットをaccept
-	auto &soc = m_soc;
-	StringBuffer line(1024);
-	BufferedStream bs;
-	uint8_t buf[256];
-
-	ret_t r;
-
-	r = soc.accept(ctx.m_com_soc);
-	if(is_failed(r)) {
-		return r;
-	}
-
-	auto &com_soc = ctx.m_com_soc;
-
-	com_soc.set_opt_recv_timeout(5000);
-	com_soc.set_opt_send_timeout(5000);
-
-	SocketStream ss(com_soc);
-
-	bs.create(&ss, buf, sizeof(buf));
-
-	// read Request-Line
-	r = read_line(bs, line);
-	if(is_failed(r)) {
-		//
-	}
-
-	// read Headers
-	for(;;) {
-		r = read_line(bs, line);
-		if(line.get_length() == 0) {
-			break;
-		}
-	}
-
-	return kOk;
-}
 
 #if 0
 
@@ -392,7 +146,7 @@ void auto_reset()
 
 struct GWCheckServiceConfig
 {
-	IEMACInterface 		*intf;
+	NetworkInterface 	*intf;
 	uint32_t			check_interval;	// ms
 	uint32_t			error_count;
 	Callback<void()>	error_handler;
@@ -408,7 +162,6 @@ public:
 	ret_t start();
 	ret_t stop();
 };
-#endif
 
 static Thread test_thread;
 static uint8_t http_buffer[4096];
@@ -430,6 +183,59 @@ void test_func()
 	return;
 }
 
+void netinterface_status_changed(NetworkInterface *nif)
+{
+	if(nif->get_connection_status() == ConnectionStatus::kConnected) {
+		// Start or resume services
+	} else {
+		// Stop or suspend services
+	}
+}
+
+enum class ServiceManagerMessageCode
+{
+	kStartup,
+	kShutdown,
+	kNetworkStatusChanged
+};
+
+class ServiceMessage;
+
+class ServiceBase
+{
+protected:
+	void on_start();
+	void on_stop();
+	void on_event(ServiceMessage *msg);
+};
+
+struct ServiceManagerMessage
+{
+	ServiceManagerMessageCode	msg_code;
+	union {
+		struct {
+			NetworkInterface *inf;
+		} network_status_change;
+	} data;
+};
+
+class ServiceManager final : private NonCopyable
+{
+
+private:
+
+	void thread_main();
+
+	ret_t send_message();
+
+	Thread m_thread;
+	DataQueue m_msg_queue;
+	MemoryPool m_msg_mem_pool;
+};
+
+
+
+
 void app_main()
 {
 	auto nif = STMEhternetInterface::get_instance();
@@ -437,10 +243,8 @@ void app_main()
 	nif->connect();
 
 	// 接続完了を待つ
-	IPAddress addr;
 	for(;;) {
-		nif->get_ip(addr);
-		if(nif->get_connection_status() == ConnectionStatus::kLocalUp) {
+		if(nif->get_connection_status() == ConnectionStatus::kConnected) {
 			break;
 		}
 		Thread::sleep(1000);
