@@ -253,13 +253,15 @@ The STM32F4x7 allows computing and verifying the IP, UDP, TCP and ICMP checksums
    ---------------------------------
 */
 #define LWIP_IGMP						1
-#define LWIP_AUTOIP						1
+#define LWIP_AUTOIP						0
 #define LWIP_MDNS_RESPONDER				1
 #define LWIP_NETIF_HOSTNAME				1
 #define LWIP_NUM_NETIF_CLIENT_DATA		1
 
 // append
 #define LWIP_DNS						1
+#define LWIP_SO_SNDTIMEO				1
+#define LWIP_SO_RCVTIMEO				1
 
 #endif /* __LWIPOPTS_H__ */
 

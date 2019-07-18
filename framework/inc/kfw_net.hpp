@@ -3,10 +3,10 @@
 #ifndef KFW_NET_HPP
 #define KFW_NET_HPP
 
+#include <lwip/api.h>
 #include <kfw_net_common.hpp>
 #include <kfw_io.hpp>
 #include <kfw_netif.hpp>
-#include <lwip/api.h>
 
 namespace kfw { namespace net
 {
@@ -84,6 +84,8 @@ namespace kfw { namespace net
 		ret_t disconnect();
 		ret_t bind(const SocketAddress &addr);
 		ret_t listen(int32_t backlogs = 16);
+		// 未初期化のSocketを渡してください。
+		// 未初期化とはopenが実施されていないまたはopen後にcloseを実施済みのもの
 		ret_t accept(Socket &socket);
 		RetVal<uint32_t> recv(void *buf, uint32_t size) {
 			SocketAddress remote;
@@ -100,14 +102,12 @@ namespace kfw { namespace net
 		// Socket options
 		ret_t add_membership(const IPAddress &value);
 		ret_t drop_membership(const IPAddress &value);
-		ret_t set_opt_keep_alive(bool value);
-		ret_t get_opt_keep_alive(bool &value);
-		ret_t set_opt_multicast_interface(const IPAddress &value);
-		ret_t set_opt_multicast_ttl(int32_t value);
-		ret_t set_opt_recv_timeout(int32_t value);
-		ret_t get_opt_recv_timeout(int32_t &value);
-		ret_t set_opt_send_timeout(int32_t value);
-		ret_t get_opt_send_timeout(int32_t &value);
+		ret_t set_keep_alive(bool value);
+		ret_t get_keep_alive(bool &value);
+		ret_t set_recv_timeout(int32_t value);
+		ret_t get_recv_timeout(int32_t &value);
+		ret_t set_send_timeout(int32_t value);
+		ret_t get_send_timeout(int32_t &value);
 
 		Socket &&move() {
 			return (Socket &&)*this;
@@ -142,8 +142,11 @@ namespace kfw { namespace net
 		Socket &m_socket;
 	};
 
+	class TcpServer;
+
 	class TcpClient final : private NonCopyable
 	{
+		friend class TcpServer;
 	public:
 		TcpClient();
 		~TcpClient();
@@ -162,6 +165,20 @@ namespace kfw { namespace net
 		SocketStream *get_stream() {
 			return &m_stream;
 		}
+
+		ret_t set_recv_timeout(int32_t value) {
+			return m_socket.set_recv_timeout(value);
+		}
+		ret_t get_recv_timeout(int32_t &value) {
+			return m_socket.get_recv_timeout(value);
+		}
+		ret_t set_send_timeout(int32_t value) {
+			return m_socket.set_send_timeout(value);
+		}
+		ret_t get_send_timeout(int32_t &value) {
+			return m_socket.get_send_timeout(value);
+		}
+
 	private:
 		Socket m_socket;
 		SocketStream m_stream;
@@ -170,7 +187,20 @@ namespace kfw { namespace net
 	class TcpServer final : private NonCopyable
 	{
 	public:
+		TcpServer() : m_socket() {}
+		~TcpServer() = default;
 
+		ret_t create(int32_t port);
+		void dispose() {
+			m_socket.close();
+		}
+
+		ret_t start(int32_t backlogs = 16);
+
+		ret_t accept_tcp_client(TcpClient &client);
+
+	private:
+		Socket m_socket;
 	};
 
 	class Dns final : private NonCopyable
@@ -178,7 +208,7 @@ namespace kfw { namespace net
 	private:
 		Dns() {}
 	public:
-		static ret_t get_host_by_name(const char *host_name, IPAddress &address);
+		static ret_t get_host_by_name(const char8_t *host_name, IPAddress &address);
 	};
 
 	enum class DnsSdProtocol

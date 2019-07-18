@@ -4,7 +4,7 @@
 #include "kfw_rtos.hpp"
 #include <lwip/dhcp.h>
 #include <lwip/igmp.h>
-#include <lwip/api.h>
+#include <lwip/ip.h>
 
 namespace kfw { namespace net
 {
@@ -272,6 +272,10 @@ ret_t Socket::accept(Socket &socket)
 
 	socket.m_context = context;
 
+	socket.set_keep_alive(true);
+	socket.set_recv_timeout(5000);
+	socket.set_send_timeout(5000);
+
 	return kOk;
 }
 
@@ -363,6 +367,91 @@ RetVal<uint32_t> Socket::send_to(const void *buf, uint32_t size, const SocketAdd
 	}
 }
 
+ret_t Socket::add_membership(const IPAddress &value)
+{
+	ip4_addr addr;
+	addr.addr = value.m_address;
+	err_t err = netconn_join_leave_group(m_context->m_handle,
+			&addr, nullptr, NETCONN_JOIN);
+
+	return lwip_err_to_ret(err);
+}
+
+ret_t Socket::drop_membership(const IPAddress &value)
+{
+	ip4_addr addr;
+	addr.addr = value.m_address;
+	err_t err = netconn_join_leave_group(m_context->m_handle,
+			&addr, nullptr, NETCONN_LEAVE);
+
+	return lwip_err_to_ret(err);
+}
+
+ret_t Socket::set_keep_alive(bool value)
+{
+	if(value) {
+		ip_set_option(m_context->m_handle->pcb.ip, SOF_KEEPALIVE);
+	} else {
+		ip_reset_option(m_context->m_handle->pcb.ip, SOF_KEEPALIVE);
+	}
+
+	return kOk;
+}
+
+ret_t Socket::get_keep_alive(bool &value)
+{
+	if(m_context == nullptr) {
+		return kEDisposed;
+	}
+
+	value = ip_get_option(m_context->m_handle->pcb.ip, SOF_KEEPALIVE) != 0;
+	return kOk;
+}
+
+ret_t Socket::set_recv_timeout(int32_t value)
+{
+	if(m_context == nullptr) {
+		return kEDisposed;
+	}
+
+	netconn_set_recvtimeout(m_context->m_handle, value);
+
+	return kOk;
+}
+
+ret_t Socket::get_recv_timeout(int32_t &value)
+{
+	if(m_context == nullptr) {
+		return kEDisposed;
+	}
+
+	value = netconn_get_recvtimeout(m_context->m_handle);
+
+	return kOk;
+}
+
+ret_t Socket::set_send_timeout(int32_t value)
+{
+	if(m_context == nullptr) {
+		return kEDisposed;
+	}
+
+	netconn_set_sendtimeout(m_context->m_handle, value);
+
+	return kOk;
+}
+ret_t Socket::get_send_timeout(int32_t &value)
+{
+	if(m_context == nullptr) {
+		return kEDisposed;
+	}
+
+	value = netconn_get_sendtimeout(m_context->m_handle);
+
+	return kOk;
+}
+
+// --- SocketStream class ---
 SocketStream::~SocketStream()
 {
 }
@@ -394,7 +483,28 @@ TcpClient::~TcpClient()
 }
 
 ret_t TcpClient::create(AddressFamily addressFamily) {
-	return m_socket.open(SocketType::kTCP);
+	ret_t r = m_socket.open(SocketType::kTCP);
+
+	if(is_failed(r)) {
+		return r;
+	}
+
+	r = m_socket.set_keep_alive(true);
+	if(is_failed(r)) {
+		return r;
+	}
+
+	r = m_socket.set_send_timeout(30 * 1000);
+	if(is_failed(r)) {
+		return r;
+	}
+
+	r = m_socket.set_recv_timeout(30 * 1000);
+	if(is_failed(r)) {
+		return r;
+	}
+
+	return kOk;
 }
 
 void TcpClient::dispose() {
@@ -416,7 +526,7 @@ ret_t TcpClient::disconnect()
 	return m_socket.disconnect();
 }
 
-ret_t Dns::get_host_by_name(const char *host_name, IPAddress &address)
+ret_t Dns::get_host_by_name(const char8_t *host_name, IPAddress &address)
 {
 	ip_addr_t addr;
 	err_t err = netconn_gethostbyname(host_name, &addr);
@@ -424,7 +534,33 @@ ret_t Dns::get_host_by_name(const char *host_name, IPAddress &address)
 	return lwip_err_to_ret(err);
 }
 
+//--- TcpServer class ---
+ret_t TcpServer::create(int32_t port)
+{
+	ret_t r = m_socket.open(SocketType::kTCP);
+	if(is_failed(r)) {
+		return r;
+	}
+	r = m_socket.bind(SocketAddress(IPAddress::get_Loopback(), port));
+	if(is_failed(r)) {
+		return r;
+	}
+
+	return kOk;
+}
+
+ret_t TcpServer::start(int32_t backlogs)
+{
+	return m_socket.listen(backlogs);
+}
+
+ret_t TcpServer::accept_tcp_client(TcpClient &client)
+{
+	return m_socket.accept(client.m_socket);
+}
+
 //--- functions ---
+/*
 void kfw_net_lwip_timer(void)
 {
 	int dhcp_cd = 0;
@@ -456,6 +592,7 @@ void kfw_net_lwip_timer(void)
 }
 
 static kfw::rtos::Thread s_kfw_net_lwip_timer_thread;
+*/
 
 void kfw_net_static_init(void)
 {
