@@ -4,23 +4,20 @@
 
 namespace kfw {
 
-#define start_timer()    *((volatile uint32_t*)0xE0001000) = 0x40000001  // Enable CYCCNT register
-#define stop_timer()   *((volatile uint32_t*)0xE0001000) = 0x40000000  // Disable CYCCNT register
-#define get_timer()   *((volatile uint32_t*)0xE0001004)               // Get value from CYCCNT register
-
 void kfw_system_start_cycle_counter()
 {
-	start_timer();
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 }
 
 void kfw_system_stop_cycle_counter()
 {
-	stop_timer();
+	DWT->CTRL &= ~DWT_CTRL_CYCCNTENA_Msk;
 }
 
 uint32_t kfw_system_get_cycle_counter()
 {
-	return get_timer();
+	return DWT->CYCCNT;
 }
 
 void kfw_system_error(ret_t r)

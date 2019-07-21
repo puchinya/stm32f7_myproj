@@ -22,9 +22,9 @@ void kfw_startup(void)
 {
 	kos_ctsk_t ctsk;
 
-	kfw::kfw_system_start_cycle_counter();
-
 	kos_init_kernel();
+
+	kfw::kfw_system_start_cycle_counter();
 
 	ctsk = {0};
 	ctsk.task = (kos_fp_t)kfw_run;
@@ -73,7 +73,17 @@ void *operator new(std::size_t size)
 	return kos_alloc(size);
 }
 
+void *operator new[](std::size_t size)
+{
+	return kos_alloc(size);
+}
+
 void operator delete(void *p)
+{
+	kos_free(p);
+}
+
+void operator delete[](void *p)
 {
 	kos_free(p);
 }

@@ -30,8 +30,6 @@ namespace kfw {
 	void DateTime::set_ticks(utc_time_t ticks)
 	{
 		uint64_t total_sec = ticks / 1000;
-		uint64_t total_min = total_sec / 60;
-		uint64_t total_hours = total_min / 60;
 		int32_t days = total_sec / (24 * 3600) + EPOCH_ADJUSTMENT_DAYS;
 		int32_t rem = total_sec % (24 * 3600);
 		if(rem < 0) {

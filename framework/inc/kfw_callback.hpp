@@ -18,7 +18,7 @@ namespace kfw
 	class Callback;
 
 	template <typename R, typename ...Args>
-	class Callback<R(Args...)>
+	class Callback<R(Args...)> final
 	{
 	public:
 		Callback(R(*func)(Args...) = nullptr)
@@ -78,17 +78,24 @@ namespace kfw
 			return m_ops != nullptr;
 		}
 
+		Callback<R(Args...)> &operator = (const Callback<R(Args...)> &obj)
+		{
+			memcpy(this, &obj, sizeof(*this));
+			return *this;
+		}
+
 	private:
 
 		struct DummyClass;
-		union {
+		volatile DummyClass *m_obj;
+
+		volatile union {
 			R (*static_func)(Args...);
 			R (DummyClass::*method_func)(Args...);
 			uint32_t dummy[4];
 		} m_func;
-		DummyClass *m_obj;
 
-		const struct Ops {
+		volatile const struct Ops {
 			R(*call)(const void *, Args...);
 			void (*move)(void *, const void *);
 			void (*dtor)(void *);
@@ -131,11 +138,11 @@ namespace kfw
 
 		template <typename O, typename M>
 		struct MethodContext {
-			M m_method;
 			O *m_obj;
+			M m_method;
 
 			MethodContext(O *obj, M method)
-			: m_method(method), m_obj(obj) {}
+			: m_obj(obj), m_method(method) {}
 
 			R operator()(Args... a) const
 			{
@@ -145,11 +152,11 @@ namespace kfw
 
 		template <typename F, typename A>
 		struct FunctionContext {
-			F m_func;
-			A *m_arg;
+			volatile A *m_arg;
+			volatile F m_func;
 
 			FunctionContext(F func, A *arg)
-			: m_func(func), m_arg(arg)
+			: m_arg(arg), m_func(func)
 			{
 
 			}

@@ -273,8 +273,6 @@ ret_t Socket::accept(Socket &socket)
 	socket.m_context = context;
 
 	socket.set_keep_alive(true);
-	socket.set_recv_timeout(5000);
-	socket.set_send_timeout(5000);
 
 	return kOk;
 }
@@ -330,7 +328,9 @@ RetVal<uint32_t> Socket::recv_from(void *buf, uint32_t size, SocketAddress &remo
 		}
 	}
 
-	return RetVal<uint32_t>(lwip_err_to_ret(err), size - remain_read_size);
+	ret_t r = lwip_err_to_ret(err);
+
+	return RetVal<uint32_t>(r, size - remain_read_size);
 }
 
 RetVal<uint32_t> Socket::send_to(const void *buf, uint32_t size, const SocketAddress &remote)
@@ -346,9 +346,14 @@ RetVal<uint32_t> Socket::send_to(const void *buf, uint32_t size, const SocketAdd
 	}
 
 	if(m_context->m_handle->type == NETCONN_TCP) {
-		err_t err = netconn_write(m_context->m_handle, buf, size, NETCONN_NOCOPY);
+		size_t written_size;
+		err_t err = netconn_write_partly(m_context->m_handle, buf, size, NETCONN_NOCOPY, &written_size);
 
-		return RetVal<uint32_t>(lwip_err_to_ret(err), size);
+		ret_t r = lwip_err_to_ret(err);
+		if(is_failed(r)) {
+			return RetVal<uint32_t>(r, 0);
+		}
+		return RetVal<uint32_t>(r, (uint32_t)written_size);
 	} else {
 
 		SocketBuffer sock_buf;
@@ -363,7 +368,11 @@ RetVal<uint32_t> Socket::send_to(const void *buf, uint32_t size, const SocketAdd
 
 		err_t err = netconn_sendto(m_context->m_handle, sock_buf.m_handle, &addr, remote.m_port);
 
-		return RetVal<uint32_t>(lwip_err_to_ret(err), size);
+		r = lwip_err_to_ret(err);
+		if(is_failed(r)) {
+			return RetVal<uint32_t>(r, 0);
+		}
+		return RetVal<uint32_t>(r, size);
 	}
 }
 
