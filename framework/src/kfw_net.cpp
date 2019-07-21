@@ -456,6 +456,11 @@ SocketStream::~SocketStream()
 {
 }
 
+void SocketStream::flush()
+{
+
+}
+
 void SocketStream::close()
 {
 	m_socket.disconnect();

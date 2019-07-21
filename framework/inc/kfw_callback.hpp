@@ -84,6 +84,7 @@ namespace kfw
 		union {
 			R (*static_func)(Args...);
 			R (DummyClass::*method_func)(Args...);
+			uint32_t dummy[4];
 		} m_func;
 		DummyClass *m_obj;
 
@@ -102,7 +103,7 @@ namespace kfw
 				&Callback::function_dtor<F>
 			};
 
-			static_assert(sizeof(Callback) - sizeof(ops) >= sizeof(F),
+			static_assert(sizeof(Callback) - sizeof(Ops) >= sizeof(F),
 					"Type F must not exceed the size of the Callback class");
 
 			memset(this, 0, sizeof(Callback));
@@ -133,7 +134,7 @@ namespace kfw
 			M m_method;
 			O *m_obj;
 
-			MethodContext(O *obj, M *method)
+			MethodContext(O *obj, M method)
 			: m_method(method), m_obj(obj) {}
 
 			R operator()(Args... a) const

@@ -1,6 +1,8 @@
 
 #include "kfw_common.hpp"
+#include "kfw_system.hpp"
 #include "kfw_net_local.hpp"
+#include "kfw_rtc.hpp"
 #include <itron.h>
 #include <new>
 
@@ -19,6 +21,8 @@ static ID s_main_id;
 void kfw_startup(void)
 {
 	kos_ctsk_t ctsk;
+
+	kfw::kfw_system_start_cycle_counter();
 
 	kos_init_kernel();
 
@@ -53,6 +57,7 @@ void kfw_run(void *p)
 {
 	extern void app_main();
 
+	kfw::kfw_rtc_static_init();
 	kfw::net::kfw_net_static_init();
 
 	call_constructors();

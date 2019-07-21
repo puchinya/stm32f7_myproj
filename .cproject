@@ -37,6 +37,7 @@
 									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/Drivers/BSP/STM32746G-Discovery&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/middlewares/lwip/system&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/middlewares/lwip/src/include&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/stm32f7_myproj/external/mbedtls/include}&quot;"/>
 								</option>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.221095748" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="STM32F746G_DISCO"/>
@@ -64,6 +65,7 @@
 									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/middlewares/lwip/src/include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/middlewares/lwip/system&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/Drivers/BSP/STM32746G-Discovery&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/stm32f7_myproj/external/mbedtls/include}&quot;"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1873644952" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="STM32F746G_DISCO"/>
@@ -116,6 +118,8 @@
 						<entry excluding="stm32746g_discovery_ts.c|stm32746g_discovery_audio.c|stm32746g_discovery_camera.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers/BSP/STM32746G-Discovery"/>
 						<entry excluding="stm32f7xx_hal_timebase_rtc_wakeup_template.c|stm32f7xx_hal_timebase_tim_template.c|stm32f7xx_hal_timebase_rtc_alarm_template.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers/STM32F7xx_HAL_Driver/Src"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app/src"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="external/mbedtls/library"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="external/mbedtls/platform"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="framework/src"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="inc"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="kos/src/kernel"/>

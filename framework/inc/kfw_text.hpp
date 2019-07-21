@@ -25,6 +25,10 @@ public:
 	uint32_t get_length() const {
 		return m_length;
 	}
+
+	operator ConstStringRef() const {
+		return ConstStringRef(m_data, m_length);
+	}
 private:
 	uint32_t	m_capacity;
 	uint32_t	m_length;

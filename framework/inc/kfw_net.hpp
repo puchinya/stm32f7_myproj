@@ -133,6 +133,7 @@ namespace kfw { namespace net
 
 		~SocketStream() override;
 
+		void flush() override;
 		void close() override;
 
 		RetVal<uint32_t> read(void *buf, uint32_t size) override;
