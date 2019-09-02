@@ -34,6 +34,21 @@ namespace kfw {
 		int32_t get_month() const {
 			return m_month;
 		}
+		int32_t get_day() const {
+			return m_day;
+		}
+		int32_t get_hour() const {
+			return m_hour;
+		}
+		int32_t get_min() const {
+			return m_min;
+		}
+		int32_t get_sec() const {
+			return m_sec;
+		}
+		int32_t get_msec() const {
+			return m_msec;
+		}
 		DateTimeKind get_kind() const {
 			return m_kind;
 		}
@@ -61,6 +76,7 @@ namespace kfw {
 		static bool is_synced() {
 			return m_is_synced;
 		}
+
 		static utc_time_t get_time();
 	};
 

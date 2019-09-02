@@ -12,223 +12,36 @@
 #include <ethernetif.h>
 #include <networkd.h>
 #include <mdnsd.h>
+#include <stdio.h>
 
 static void SystemClock_Config(void);
 static void MPU_Config(void);
 static void CPU_CACHE_Enable(void);
-
-static void init_task (void const *arg);
-static void led_blink_task (void const *arg);
-static void gui_task(void const *arg);
-static void httpd_task(void const *arg);
-//static void dhcpc_thread(void const *arg);
-
-osThreadDef (led_blink_task, osPriorityHigh, 1, 0);
-osThreadDef (httpd_task, osPriorityNormal, 1, 8192);
-osThreadDef (init_task, osPriorityRealtime, 1, 4096);
-osThreadDef (gui_task, osPriorityLow, 1, 4096);
-//osThreadDef (dhcpc_thread, osPriorityLow, 1, 4096);
-
-static void led_blink_task (void const *arg)
-{
-	BSP_LED_Init(LED1);
-	//First thread
-	while (1) { // loop forever
-		BSP_LED_On(LED1);
-		osDelay(500);
-		BSP_LED_Off(LED1);
-		osDelay(500);
-	}
-}
-
-err_t ethernetif_init(struct netif *netif);
-
-//static struct dhcp st_dhcp;
-
-static const char s_html[] =
-{
-	"HTTP/1.1 200 OK\r\n"
-	"Connection: close\r\n"
-	"Content-Length: 41\r\n"
-	"\r\n"
-	"<html>"
-	"<body>"
-	"<h1>Hello</h1>"
-	"</body>"
-	"</html>"
-};
-
-
-void http_server_serve(struct netconn *conn)
-{
-	struct netbuf *inbuf;
-	err_t recv_err;
-	char* buf;
-	u16_t buflen;
-	struct fs_file * file;
-
-	/* Read the data from the port, blocking if nothing yet there.
-	We assume the request (the part we care about) is in one netbuf */
-	recv_err = netconn_recv(conn, &inbuf);
-
-	if (recv_err == ERR_OK)
-	{
-		if (netconn_err(conn) == ERR_OK)
-		{
-			netbuf_data(inbuf, (void**)&buf, &buflen);
-
-			/* Is this an HTTP GET command? (only check the first 5 chars, since
-			there are other formats for GET, and we're keeping it very simple )*/
-			if ((buflen >=5) && (strncmp(buf, "GET /", 5) == 0))
-			{
-				netconn_write(conn, (const unsigned char*)(s_html), (size_t)sizeof(s_html), NETCONN_NOCOPY);
-			}
-		}
-	}
-	/* Close the connection (server closes in HTTP) */
-	netconn_close(conn);
-
-	/* Delete the buffer (netconn_recv gives us ownership,
-	so we have to make sure to deallocate the buffer) */
-	netbuf_delete(inbuf);
-}
-
-#define DHCP_TIMEOUT_MS     2000
-
-static void igmp_thread(void const *arg)
-{
-	for(;;) {
-		osDelay(IGMP_TMR_INTERVAL);
-		igmp_tmr();
-	}
-}
-
-/*
-static void dhcpc_thread(void const *arg)
-{
-	err_t err;
-	uint32_t mscnt = 0;
-
-	dhcp_set_struct(&g_netif, &st_dhcp);
-
-	err = dhcp_start(&g_netif);
-	if(err != ERR_OK) {
-	  LWIP_DEBUGF(LWIP_DBG_ON, ("DHCP failed"));
-	}
-
-	for(;;) {
-		osDelay(DHCP_FINE_TIMER_MSECS);
-		dhcp_fine_tmr();
-		mscnt += DHCP_FINE_TIMER_MSECS;
-		if (mscnt >= DHCP_COARSE_TIMER_SECS * 1000) {
-			dhcp_coarse_tmr();
-			mscnt = 0;
-		}
-	}
-}*/
-
-#if 0
-static void httpd_task (void const *arg)
-{
-	struct netconn *conn, *newconn;
-	err_t err, accept_err;
-	ip_addr_t ip;
-
-	networkd_start();
-
-	//osThreadCreate(osThread(dhcpc_thread), 0);
-
-	for(;;) {
-		//if(gnetif.ip_addr.addr) {
-		//	break;
-		//}
-		networkd_get_ip(&ip);
-
-		if(ip.addr) {
-			break;
-		}
-
-		osDelay(500);
-	}
-
-	mdnsd_start();
-
-	/* Create a new TCP connection handle */
-	conn = netconn_new(NETCONN_TCP);
-
-	if (conn!= NULL)
-	{
-		/* Bind to port 80 (HTTP) with default IP address */
-		err = netconn_bind(conn, NULL, 80);
-
-		if (err == ERR_OK)
-		{
-			/* Put the connection into LISTEN state */
-			netconn_listen(conn);
-
-			while(1)
-			{
-				/* accept any icoming connection */
-				accept_err = netconn_accept(conn, &newconn);
-				if(accept_err == ERR_OK)
-				{
-					/* serve connection */
-					http_server_serve(newconn);
-
-					/* delete connection */
-					netconn_delete(newconn);
-				}
-			}
-		}
-	}
-}
-#endif
-
-static void init_task (void const *arg)
-{
-	osThreadCreate(osThread(httpd_task), 0);
-	osThreadCreate(osThread(led_blink_task), 0);
-	osThreadCreate(osThread(gui_task), 0);
-}
-
-static void gui_task(void const *arg)
-{
-	BSP_LCD_Init();
-	BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
-//	BSP_LCD_LayerDefaultInit(1, LCD_FB_START_ADDRESS + (BSP_LCD_GetXSize()*BSP_LCD_GetYSize()*4));
-	BSP_LCD_DisplayOn();
-	BSP_LCD_SelectLayer(0);
-	BSP_LCD_Clear(LCD_COLOR_BLACK);
-//    BSP_LCD_SelectLayer(1);
-//    BSP_LCD_Clear(LCD_COLOR_BLACK);
-
-	while(1) {
-		BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
-		BSP_LCD_DisplayStringAtLine(1, "Hello World");
-		osDelay(500);
-	}
-}
+static void target_init(void);
 
 void main(void)
 {
-	MPU_Config();
-	CPU_CACHE_Enable();
-	HAL_Init();
-	SystemClock_Config();
+	extern void initialise_monitor_handles(void);
+	extern void kfw_startup();
 
-	{
-		extern void kfw_startup();
-		kfw_startup();
-	}
+	target_init();
 
-	//osKernelInitialize();
-	//osThreadCreate(osThread(init_task), 0);
-	//osKernelStart();
+	initialise_monitor_handles();
+
+	kfw_startup();
 }
 
 void _init()
 {
 
+}
+
+static void target_init(void)
+{
+	MPU_Config();
+	CPU_CACHE_Enable();
+	HAL_Init();
+	SystemClock_Config();
 }
 
 static void SystemClock_Config(void)

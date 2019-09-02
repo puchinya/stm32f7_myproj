@@ -14,6 +14,7 @@ namespace kfw { namespace net {
 
 	private:
 		void thread_main();
+		ret_t do_sync();
 		bool m_is_started;
 		bool m_req_quit;
 		Socket m_socket;

@@ -2,7 +2,6 @@
 #pragma once
 
 #include <kfw_net_common.hpp>
-#include <kfw_callback.hpp>
 
 namespace kfw { namespace net { namespace intf {
 

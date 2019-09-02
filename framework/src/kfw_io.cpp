@@ -3,6 +3,8 @@
 
 namespace kfw { namespace io {
 
+// --- Stream class ---
+
 Stream::~Stream()
 {
 
@@ -50,6 +52,11 @@ ret_t BufferedStream::init(kfw::io::Stream *base_stream,
 	return kOk;
 }
 
+void BufferedStream::dispose()
+{
+
+}
+
 RetVal<uint32_t> BufferedStream::read(void *buf, uint32_t size)
 {
 	if(m_base_stream == nullptr) {
@@ -73,7 +80,7 @@ RetVal<uint32_t> BufferedStream::read(void *buf, uint32_t size)
 			}
 			memcpy(buf_ptr, &m_read_buffer[m_read_buffer_rp], copy_size);
 			buf_ptr += copy_size;
-			remain_size += copy_size;
+			remain_size -= copy_size;
 			m_read_buffer_rp += copy_size;
 		} else {
 
@@ -86,7 +93,7 @@ RetVal<uint32_t> BufferedStream::read(void *buf, uint32_t size)
 					break;
 				}
 				m_read_buffer_rp = 0;
-				m_read_buffer_wp = 0;
+				m_read_buffer_wp = read_res.val;
 			}
 		}
 	}
@@ -102,6 +109,10 @@ RetVal<uint32_t> BufferedStream::write(const void *buf, uint32_t size)
 
 	if(size == 0) {
 		return RetVal<uint32_t>(kOk, 0);
+	}
+
+	if(m_write_buffer == nullptr) {
+		return m_base_stream->write(buf, size);
 	}
 
 	ret_t r;
@@ -146,6 +157,59 @@ ret_t BufferedStream::flush_write_buffer()
 	m_write_buffer_usage = 0;
 
 	return kOk;
+}
+
+// --- StreamWriter class ---
+
+StreamWriter & StreamWriter::operator << (const ConstStringRef &value) {
+	ret_t r;
+	r = m_s.write(value.get_data(), value.get_length()).ret;
+	if(is_failed(r)) {
+		set_error(r);
+	}
+	return *this;
+}
+
+StreamWriter & StreamWriter::operator << (const char8_t *value) {
+	ret_t r;
+	uint32_t slen = strlen(value);
+	r = m_s.write(value, slen).ret;
+	if(is_failed(r)) {
+		set_error(r);
+	}
+	return *this;
+}
+
+StreamWriter & StreamWriter::operator << (int32_t value) {
+	char8_t s[Int32::kMaxStringLength];
+	uint32_t slen;
+	ret_t r = Int32::to_string(value, s, Int32::kMaxStringLength, slen);
+	if(is_failed(r)) {
+		set_error(r);
+	} else {
+		r = m_s.write(s, slen).ret;
+		if(is_failed(r)) {
+			set_error(r);
+		}
+	}
+
+	return *this;
+}
+
+StreamWriter & StreamWriter::operator << (uint32_t value) {
+	char8_t s[UInt32::kMaxStringLength];
+	uint32_t slen;
+	ret_t r = UInt32::to_string(value, s, UInt32::kMaxStringLength, slen);
+	if(is_failed(r)) {
+		set_error(r);
+	} else {
+		r = m_s.write(s, slen).ret;
+		if(is_failed(r)) {
+			set_error(r);
+		}
+	}
+
+	return *this;
 }
 
 }}

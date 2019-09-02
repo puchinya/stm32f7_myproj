@@ -27,6 +27,13 @@ namespace kfw {
 		dt.set_ticks(utc_now);
 	}
 
+	// @TODO
+	void DateTime::get_now(DateTime &dt)
+	{
+		auto utc_now = Rtc::get_time();
+		dt.set_ticks(utc_now);
+	}
+
 	void DateTime::set_ticks(utc_time_t ticks)
 	{
 		uint64_t total_sec = ticks / 1000;
@@ -56,6 +63,7 @@ namespace kfw {
 		int32_t day = yearday - (153 * month + 2) / 5 + 1;
 		month += month < 10 ? 2 : -10;
 		int32_t year = ADJUSTED_EPOCH_YEAR + erayear + era * YEARS_PER_ERA + (month <= 1);
+		month = month + 1;
 		m_year = year;
 		m_month = month;
 		m_day = day;

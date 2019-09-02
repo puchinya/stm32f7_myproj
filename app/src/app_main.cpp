@@ -7,6 +7,9 @@
 #include <kfw_system.hpp>
 #include <kfw_web.hpp>
 #include <kfw_net_ntp.hpp>
+#include <stdio.h>
+#include <kfw_rtc.hpp>
+#include "app_httpd.hpp"
 
 using namespace kfw;
 using namespace kfw::net;
@@ -15,41 +18,7 @@ using namespace kfw::net::intf::stm;
 using namespace kfw::rtos;
 using namespace kfw::io;
 using namespace kfw::web;
-
-class String final
-{
-public:
-
-};
-
-#define CFG_HTTP_LISTENER_MAX_HEADER_BUF_SIZE	4096
-#define CFG_HTTP_LISTENER_MAX_
-
-
-
-class StringRef final
-{
-public:
-	StringRef(char8_t *c_str)
-	{
-		m_data = c_str;
-		m_length = strlen(c_str);
-	}
-	StringRef(char8_t *data, uint32_t length) :
-		m_data(data), m_length(length)
-	{
-
-	}
-
-	ConstStringRef get_const_ref() const {
-		return ConstStringRef(m_data, m_length);
-	}
-private:
-	char8_t		*m_data;
-	uint32_t	m_length;
-};
-
-
+using namespace app;
 
 #if 0
 
@@ -148,24 +117,7 @@ void auto_reset()
 }
 #endif
 
-struct GWCheckServiceConfig
-{
-	NetworkInterface 	*intf;
-	uint32_t			check_interval;	// ms
-	uint32_t			error_count;
-	Callback<void()>	error_handler;
-};
 
-class GWCheckService
-{
-private:
-	GWCheckServiceConfig	m_cfg;
-	void thread_main();
-public:
-	ret_t set_config(const GWCheckServiceConfig &cfg);
-	ret_t start();
-	ret_t stop();
-};
 
 static Thread test_thread;
 static uint8_t http_buffer[4096];
@@ -196,75 +148,28 @@ void netinterface_status_changed(NetworkInterface *nif)
 	}
 }
 
-enum class ServiceManagerMessageCode
-{
-	kStartup,
-	kShutdown,
-	kNetworkStatusChanged
-};
-
-class ServiceMessage;
-
-class ServiceBase
-{
-protected:
-	void on_start();
-	void on_stop();
-	void on_event(ServiceMessage *msg);
-};
-
-struct ServiceManagerMessage
-{
-	ServiceManagerMessageCode	msg_code;
-	union {
-		struct {
-			NetworkInterface *inf;
-		} network_status_change;
-	} data;
-};
-
-class ServiceManager final : private NonCopyable
-{
-
-private:
-
-	void thread_main();
-
-	ret_t send_message();
-
-	Thread m_thread;
-	DataQueue m_msg_queue;
-	MemoryPool m_msg_mem_pool;
-};
-
-/*
-using WebApiHandler = Callback<ret_t, >
-
-void add_auth(const ConstStringRef &rel_uri, AuthHandler *handler);
-void register_api(const ConstStringRef &rel_uri, WebApiHandler *web_api_handler);
-*/
-
-const char8_t *g_ca_pem = u8"-----BEGIN CERTIFICATE-----"
-		"MIIDdzCCAl+gAwIBAgIEAgAAuTANBgkqhkiG9w0BAQUFADBaMQswCQYDVQQGEwJJ"
-		"RTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJlclRydXN0MSIwIAYD"
-		"VQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTAwMDUxMjE4NDYwMFoX"
-		"DTI1MDUxMjIzNTkwMFowWjELMAkGA1UEBhMCSUUxEjAQBgNVBAoTCUJhbHRpbW9y"
-		"ZTETMBEGA1UECxMKQ3liZXJUcnVzdDEiMCAGA1UEAxMZQmFsdGltb3JlIEN5YmVy"
-		"VHJ1c3QgUm9vdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKMEuyKr"
-		"mD1X6CZymrV51Cni4eiVgLGw41uOKymaZN+hXe2wCQVt2yguzmKiYv60iNoS6zjr"
-		"IZ3AQSsBUnuId9Mcj8e6uYi1agnnc+gRQKfRzMpijS3ljwumUNKoUMMo6vWrJYeK"
-		"mpYcqWe4PwzV9/lSEy/CG9VwcPCPwBLKBsua4dnKM3p31vjsufFoREJIE9LAwqSu"
-		"XmD+tqYF/LTdB1kC1FkYmGP1pWPgkAx9XbIGevOF6uvUA65ehD5f/xXtabz5OTZy"
-		"dc93Uk3zyZAsuT3lySNTPx8kmCFcB5kpvcY67Oduhjprl3RjM71oGDHweI12v/ye"
-		"jl0qhqdNkNwnGjkCAwEAAaNFMEMwHQYDVR0OBBYEFOWdWTCCR1jMrPoIVDaGezq1"
-		"BE3wMBIGA1UdEwEB/wQIMAYBAf8CAQMwDgYDVR0PAQH/BAQDAgEGMA0GCSqGSIb3"
-		"DQEBBQUAA4IBAQCFDF2O5G9RaEIFoN27TyclhAO992T9Ldcw46QQF+vaKSm2eT92"
-		"9hkTI7gQCvlYpNRhcL0EYWoSihfVCr3FvDB81ukMJY2GQE/szKN+OMY3EU/t3Wgx"
-		"jkzSswF07r51XgdIGn9w/xZchMB5hbgF/X++ZRGjD8ACtPhSNzkE1akxehi/oCr0"
-		"Epn3o0WC4zxe9Z2etciefC7IpJ5OCBRLbf1wbWsaY71k5h+3zvDyny67G7fyUIhz"
-		"ksLi4xaNmjICq44Y3ekQEe5+NauQrz4wlHrQMz2nZQ/1/I6eYs9HRCwBXbsdtTLS"
-		"R9I4LtD+gdwyah617jzV/OeBHRnDJELqYzmp"
-		"-----END CERTIFICATE-----";
+const char8_t *g_ca_pem = u8"-----BEGIN CERTIFICATE-----\n"
+		"MIIDujCCAqKgAwIBAgILBAAAAAABD4Ym5g0wDQYJKoZIhvcNAQEFBQAwTDEgMB4G\n"
+		"A1UECxMXR2xvYmFsU2lnbiBSb290IENBIC0gUjIxEzARBgNVBAoTCkdsb2JhbFNp\n"
+		"Z24xEzARBgNVBAMTCkdsb2JhbFNpZ24wHhcNMDYxMjE1MDgwMDAwWhcNMjExMjE1\n"
+		"MDgwMDAwWjBMMSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMjETMBEG\n"
+		"A1UEChMKR2xvYmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjCCASIwDQYJKoZI\n"
+		"hvcNAQEBBQADggEPADCCAQoCggEBAKbPJA6+Lm8omUVCxKs+IVSbC9N/hHD6ErPL\n"
+		"v4dfxn+G07IwXNb9rfF73OX4YJYJkhD10FPe+3t+c4isUoh7SqbKSaZeqKeMWhG8\n"
+		"eoLrvozps6yWJQeXSpkqBy+0Hne/ig+1AnwblrjFuTosvNYSuetZfeLQBoZfXklq\n"
+		"tTleiDTsvHgMCJiEbKjNS7SgfQx5TfC4LcshytVsW33hoCmEofnTlEnLJGKRILzd\n"
+		"C9XZzPnqJworc5HGnRusyMvo4KD0L5CLTfuwNhv2GXqF4G3yYROIXJ/gkwpRl4pa\n"
+		"zq+r1feqCapgvdzZX99yqWATXgAByUr6P6TqBwMhAo6CygPCm48CAwEAAaOBnDCB\n"
+		"mTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUm+IH\n"
+		"V2ccHsBqBt5ZtJot39wZhi4wNgYDVR0fBC8wLTAroCmgJ4YlaHR0cDovL2NybC5n\n"
+		"bG9iYWxzaWduLm5ldC9yb290LXIyLmNybDAfBgNVHSMEGDAWgBSb4gdXZxwewGoG\n"
+		"3lm0mi3f3BmGLjANBgkqhkiG9w0BAQUFAAOCAQEAmYFThxxol4aR7OBKuEQLq4Gs\n"
+		"J0/WwbgcQ3izDJr86iw8bmEbTUsp9Z8FHSbBuOmDAGJFtqkIk7mpM0sYmsL4h4hO\n"
+		"291xNBrBVNpGP+DTKqttVCL1OmLNIG+6KYnX3ZHu01yiPqFbQfXf5WRDLenVOavS\n"
+		"ot+3i9DAgBkcRcAtjOj4LaR0VknFBbVPFd5uRHg5h6h+u/N5GJG79G+dwfCMNYxd\n"
+		"AfvDbbnvRG15RjF+Cv6pgsH/76tuIMRQyV+dTZsXjAzlAcmgQWpzU/qlULRuJQ/7\n"
+		"TBj0/VLZjmmx6BEP3ojY+x1J96relc8geMJgEtslQIxq/H5COEBkEveegeGTLg==\n"
+		"-----END CERTIFICATE-----\n";
 
 void Http_client()
 {
@@ -274,6 +179,7 @@ void Http_client()
 
 	ret_t r;
 
+	auto prev_tm = Rtc::get_time();
 	r = ca_cert.create(g_ca_pem, strlen(g_ca_pem) + 1);
 	if(is_failed(r)) {
 		return;
@@ -283,45 +189,62 @@ void Http_client()
 	if(is_failed(r)) {
 		return;
 	}
-	r = client.connect("yahoo.co.jp", 443);
+	r = client.connect("google.co.jp", 443);
 	if(is_failed(r)) {
 		return;
 	}
+
+	client.get_socket().set_nonblocking(false);
+
 	r = tls.create(client.get_stream());
 	if(is_failed(r)) {
 		return;
 	}
-	r = tls.authenticate_as_client(ConstStringRef("yahoo.co.jp"), &ca_cert);
+	r = tls.authenticate_as_client(ConstStringRef("google.co.jp"), &ca_cert);
+	auto next_tm = Rtc::get_time();
+	auto dt =  (int32_t)(next_tm - prev_tm);
 	if(is_failed(r)) {
+		printf("Failed Auth %d\n", dt);
 		return;
 	}
+	printf("SUCCESS %d\n", dt);
 	return;
 }
 
-void Http_server()
-{
-	HttpListener httpL;
-	httpL.create(80);
-	httpL.start();
-	for(;;) {
-		HttpListenerContext ctx;
 
-		ret_t r = httpL.get_context(ctx);
-		/*
-		if(is_failed(t)) {
-			break;
-		}
 
-		HttpListenerRequest &req = ctx.get_request();
-		HttpListenerRequest &res = ctx.get_response();
-
-		if(req.get_url() == "/TestDef.html") {
-			ctx.get_response().get_stream().write("TEST");
-		}*/
-	}
-}
 
 static SntpClientService s_sntp;
+static Httpd s_httpd;
+
+enum class EventLogEntryType
+{
+	kInfo = 0,
+	kWarning = 1,
+	kError = 2,
+};
+
+class EventLog : private NonCopyable
+{
+public:
+
+	void set_source(const char8_t *value);
+	void write_entry(const char8_t *source, const char *message, EventLogEntryType type);
+	void write_entry(const char *message, EventLogEntryType type);
+	void write_entry(const char *message);
+};
+
+enum class AppMessageCode
+{
+	NetworkConnected,
+	TimeSynced,
+	NetworkDisconnected,
+	SystemReset
+};
+
+struct AppMessage {
+	AppMessageCode	code;
+};
 
 void app_main()
 {
@@ -338,8 +261,16 @@ void app_main()
 	}
 
 	s_sntp.start();
+	s_httpd.start();
 
-	//test_thread.create(test_func, 1, 2048);
+	// wait for time sync
+	for(;;) {
+		if(Rtc::is_synced()) {
+			break;
+		}
+		Thread::sleep(1000);
+	}
+
+	//test_thread.create(Http_client, kPriorityNormal, 8192);
 	//test_thread.start();
-	//Http_client();
 }

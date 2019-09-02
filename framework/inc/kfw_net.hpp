@@ -76,6 +76,10 @@ namespace kfw { namespace net
 		ret_t open(SocketType socket_type);
 		void close();
 
+		bool is_opened() const {
+			return m_context != nullptr;
+		}
+
 		ret_t connect(const char8_t *host, int32_t port);
 		ret_t connect(const IPAddress &addr, int32_t port);
 		ret_t connect(const SocketAddress &sock_addr) {
@@ -102,12 +106,18 @@ namespace kfw { namespace net
 		// Socket options
 		ret_t add_membership(const IPAddress &value);
 		ret_t drop_membership(const IPAddress &value);
+		ret_t set_enable_broadcast(bool value);
+		ret_t get_enable_broadcast(bool &value) const;
 		ret_t set_keep_alive(bool value);
-		ret_t get_keep_alive(bool &value);
+		ret_t get_keep_alive(bool &value) const;
+		ret_t set_reuse_addr(bool value);
+		ret_t set_reuse_addr(bool &value) const;
 		ret_t set_recv_timeout(int32_t value);
-		ret_t get_recv_timeout(int32_t &value);
+		ret_t get_recv_timeout(int32_t &value) const;
 		ret_t set_send_timeout(int32_t value);
-		ret_t get_send_timeout(int32_t &value);
+		ret_t get_send_timeout(int32_t &value) const;
+		ret_t set_nonblocking(bool value);
+		ret_t get_nonblocking(bool &value) const;
 
 		Socket &&move() {
 			return (Socket &&)*this;
@@ -180,6 +190,10 @@ namespace kfw { namespace net
 			return m_socket.get_send_timeout(value);
 		}
 
+		Socket &get_socket() {
+			return m_socket;
+		}
+
 	private:
 		Socket m_socket;
 		SocketStream m_stream;
@@ -204,11 +218,60 @@ namespace kfw { namespace net
 		Socket m_socket;
 	};
 
+	class UdpClient final : private NonCopyable
+	{
+	public:
+		UdpClient() {}
+		~UdpClient() {
+			dispose();
+		}
+
+		// インスタンスを初期化して、指定したポートにバインドします。
+		ret_t create(int32_t port);
+
+		// インスタンスの解放処理を実施します。
+		void dispose() {
+			m_socket.close();
+		}
+
+		RetVal<uint32_t> send(const uint8_t *data, uint32_t data_size,
+				const SocketAddress &remote) {
+			return m_socket.send_to(data, data_size, remote);
+		}
+
+		RetVal<uint32_t> send(const uint8_t *data, uint32_t data_size,
+				const ConstStringRef &host_name, int32_t port);
+
+		RetVal<uint32_t> recv(uint8_t *data, uint32_t data_size,
+				SocketAddress &remote) {
+			return m_socket.recv_from(data, data_size, remote);
+		}
+
+		ret_t join_multicast_group(const IPAddress &multicast_group);
+		ret_t drop_multicast_group(const IPAddress &multicast_group);
+
+		ret_t set_enable_broadcast(bool value) {
+			return m_socket.set_enable_broadcast(value);
+		}
+
+		ret_t get_enable_broadcast(bool &value) const {
+			return m_socket.get_enable_broadcast(value);
+		}
+
+		Socket &get_socket() {
+			return m_socket;
+		}
+
+	private:
+		Socket m_socket;
+	};
+
 	class Dns final : private NonCopyable
 	{
 	private:
 		Dns() {}
 	public:
+		static ret_t get_host_by_name(const ConstStringRef &host_name, IPAddress &address);
 		static ret_t get_host_by_name(const char8_t *host_name, IPAddress &address);
 	};
 

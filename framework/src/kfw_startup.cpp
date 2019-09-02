@@ -3,6 +3,7 @@
 #include "kfw_system.hpp"
 #include "kfw_net_local.hpp"
 #include "kfw_rtc.hpp"
+#include "kfw_rtos.hpp"
 #include <itron.h>
 #include <new>
 
@@ -57,6 +58,7 @@ void kfw_run(void *p)
 {
 	extern void app_main();
 
+	kfw::rtos::kfw_rtos_static_init();
 	kfw::kfw_rtc_static_init();
 	kfw::net::kfw_net_static_init();
 

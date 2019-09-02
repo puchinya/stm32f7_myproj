@@ -20,7 +20,14 @@ public:
 		return m_data[index];
 	}
 
+	void clear()
+	{
+		m_length = 0;
+	}
+
 	ret_t append(int ch);
+
+	StringBuffer & operator << (const char *sz);
 
 	uint32_t get_length() const {
 		return m_length;

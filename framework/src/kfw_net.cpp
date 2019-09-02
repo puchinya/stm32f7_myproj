@@ -169,6 +169,7 @@ void Socket::close()
 	}
 
 	netconn_close(m_context->m_handle);
+	netconn_delete(m_context->m_handle);
 	m_context->m_handle = kInvalidSocketHandle;
 	delete m_context;
 	m_context = nullptr;
@@ -347,7 +348,7 @@ RetVal<uint32_t> Socket::send_to(const void *buf, uint32_t size, const SocketAdd
 
 	if(m_context->m_handle->type == NETCONN_TCP) {
 		size_t written_size;
-		err_t err = netconn_write_partly(m_context->m_handle, buf, size, NETCONN_NOCOPY, &written_size);
+		err_t err = netconn_write_partly(m_context->m_handle, buf, size, NETCONN_COPY, &written_size);
 
 		ret_t r = lwip_err_to_ret(err);
 		if(is_failed(r)) {
@@ -396,6 +397,33 @@ ret_t Socket::drop_membership(const IPAddress &value)
 	return lwip_err_to_ret(err);
 }
 
+ret_t Socket::set_enable_broadcast(bool value)
+{
+	if(m_context == nullptr) {
+		return kEDisposed;
+	}
+
+	if(value) {
+		ip_set_option(m_context->m_handle->pcb.ip, SOF_BROADCAST);
+	} else {
+		ip_reset_option(m_context->m_handle->pcb.ip, SOF_BROADCAST);
+	}
+
+	return kOk;
+}
+
+ret_t Socket::get_enable_broadcast(bool &value) const
+{
+	if(m_context == nullptr) {
+		value = false;
+		return kEDisposed;
+	}
+
+	value = ip_get_option(m_context->m_handle->pcb.ip, SOF_BROADCAST) != 0;
+
+	return kOk;
+}
+
 ret_t Socket::set_keep_alive(bool value)
 {
 	if(value) {
@@ -407,9 +435,21 @@ ret_t Socket::set_keep_alive(bool value)
 	return kOk;
 }
 
-ret_t Socket::get_keep_alive(bool &value)
+ret_t Socket::set_reuse_addr(bool value)
+{
+	if(value) {
+		ip_set_option(m_context->m_handle->pcb.ip, SOF_REUSEADDR);
+	} else {
+		ip_reset_option(m_context->m_handle->pcb.ip, SOF_REUSEADDR);
+	}
+
+	return kOk;
+}
+
+ret_t Socket::get_keep_alive(bool &value) const
 {
 	if(m_context == nullptr) {
+		value = false;
 		return kEDisposed;
 	}
 
@@ -428,9 +468,10 @@ ret_t Socket::set_recv_timeout(int32_t value)
 	return kOk;
 }
 
-ret_t Socket::get_recv_timeout(int32_t &value)
+ret_t Socket::get_recv_timeout(int32_t &value) const
 {
 	if(m_context == nullptr) {
+		value = 0;
 		return kEDisposed;
 	}
 
@@ -449,13 +490,28 @@ ret_t Socket::set_send_timeout(int32_t value)
 
 	return kOk;
 }
-ret_t Socket::get_send_timeout(int32_t &value)
+ret_t Socket::get_send_timeout(int32_t &value) const
 {
 	if(m_context == nullptr) {
+		value = 0;
 		return kEDisposed;
 	}
 
 	value = netconn_get_sendtimeout(m_context->m_handle);
+
+	return kOk;
+}
+
+ret_t Socket::set_nonblocking(bool value)
+{
+	netconn_set_nonblocking(m_context->m_handle, value);
+
+	return kOk;
+}
+
+ret_t Socket::get_nonblocking(bool &value) const
+{
+	value = netconn_is_nonblocking(m_context->m_handle);
 
 	return kOk;
 }
@@ -540,14 +596,6 @@ ret_t TcpClient::disconnect()
 	return m_socket.disconnect();
 }
 
-ret_t Dns::get_host_by_name(const char8_t *host_name, IPAddress &address)
-{
-	ip_addr_t addr;
-	err_t err = netconn_gethostbyname(host_name, &addr);
-	address.m_address = addr.addr;
-	return lwip_err_to_ret(err);
-}
-
 //--- TcpServer class ---
 ret_t TcpServer::create(int32_t port)
 {
@@ -555,7 +603,10 @@ ret_t TcpServer::create(int32_t port)
 	if(is_failed(r)) {
 		return r;
 	}
-	r = m_socket.bind(SocketAddress(IPAddress::get_Loopback(), port));
+
+	m_socket.set_reuse_addr(true);
+
+	r = m_socket.bind(SocketAddress(IPAddress::get_Any(), port));
 	if(is_failed(r)) {
 		return r;
 	}
@@ -573,40 +624,79 @@ ret_t TcpServer::accept_tcp_client(TcpClient &client)
 	return m_socket.accept(client.m_socket);
 }
 
-//--- functions ---
-/*
-void kfw_net_lwip_timer(void)
-{
-	int dhcp_cd = 0;
-	int igmp_cd = 0;
-	int dhcp_coarse_cd = 0;
+//--- UdpClient ---
 
-	for(;;)
-	{
-		// 500ms
-		if(dhcp_cd == 0) {
-			dhcp_fine_tmr();
-			dhcp_cd = 5;
-		}
-		// 100ms
-		if(igmp_cd == 0) {
-			igmp_tmr();
-			igmp_cd = 1;
-		}
-		// 1 minute
-		if(dhcp_coarse_cd == 0) {
-			dhcp_coarse_tmr();
-			dhcp_coarse_cd = 600;
-		}
-		kfw::rtos::Thread::sleep(100);
-		dhcp_cd--;
-		igmp_cd--;
-		dhcp_coarse_cd--;
+ret_t UdpClient::create(int32_t port)
+{
+	if(m_socket.is_opened()) {
+		return kEInvalidOperation;
 	}
+
+	ret_t r = m_socket.open(SocketType::kUDP);
+	if(is_failed(r)) {
+		return r;
+	}
+
+	m_socket.set_reuse_addr(true);
+
+	r = m_socket.bind(SocketAddress(IPAddress::get_Any(), port));
+	if(is_failed(r)) {
+		m_socket.close();
+		return r;
+	}
+
+	return kOk;
 }
 
-static kfw::rtos::Thread s_kfw_net_lwip_timer_thread;
-*/
+RetVal<uint32_t> UdpClient::send(const uint8_t *data, uint32_t data_size,
+				const ConstStringRef &host_name, int32_t port)
+{
+	IPAddress addr;
+	ret_t r = Dns::get_host_by_name(host_name, addr);
+	if(is_failed(r)) {
+		return r;
+	}
+	return m_socket.send_to(data, data_size, SocketAddress(addr, port));
+}
+
+ret_t UdpClient::join_multicast_group(const IPAddress &multicast_group)
+{
+	ret_t r = m_socket.add_membership(multicast_group);
+
+	return r;
+}
+
+ret_t UdpClient::drop_multicast_group(const IPAddress &multicast_group)
+{
+	ret_t r = m_socket.drop_membership(multicast_group);
+
+	return r;
+}
+
+//--- Dns class ---
+ret_t Dns::get_host_by_name(const ConstStringRef &host_name, IPAddress &address)
+{
+	char8_t host_name_z[DNS_MAX_NAME_LENGTH + 1];
+
+	if(host_name.get_length() > DNS_MAX_NAME_LENGTH) {
+		return kEArgument;
+	}
+
+	memcpy(host_name_z, host_name.get_data(), host_name.get_length());
+	host_name_z[host_name.get_length()] = 0;
+
+	return get_host_by_name(host_name_z, address);
+}
+
+ret_t Dns::get_host_by_name(const char8_t *host_name, IPAddress &address)
+{
+	ip_addr_t addr;
+	err_t err = netconn_gethostbyname(host_name, &addr);
+	address.m_address = addr.addr;
+	return lwip_err_to_ret(err);
+}
+
+//--- functions ---
 
 void kfw_net_static_init(void)
 {

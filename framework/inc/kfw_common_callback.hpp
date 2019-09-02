@@ -6,10 +6,10 @@
  */
 
 #pragma once
-#ifndef KFW_CALLBACK_HPP
-#define KFW_CALLBACK_HPP
+#ifndef KFW_COMMON_CALLBACK_HPP
+#define KFW_COMMON_CALLBACK_HPP
 
-#include "kfw_common.hpp"
+#include <kfw_common_base.hpp>
 #include <new>
 
 namespace kfw

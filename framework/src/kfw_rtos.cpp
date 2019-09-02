@@ -180,7 +180,7 @@ ret_t Mutex::unlock_isr()
 	return kfw_convert_er(er);
 }
 
-ret_t EventFlags::create(uint32_t pattern)
+ret_t EventFlag::create(uint32_t pattern)
 {
 	if(m_handle != kInvalidEventFlagHandle) {
 		return kEInvalidOperation;
@@ -201,7 +201,7 @@ ret_t EventFlags::create(uint32_t pattern)
 	return kOk;
 }
 
-void EventFlags::dispose()
+void EventFlag::dispose()
 {
 	if(m_handle == kInvalidEventFlagHandle) {
 		return;
@@ -211,7 +211,7 @@ void EventFlags::dispose()
 	m_handle = kInvalidEventFlagHandle;
 }
 
-ret_t EventFlags::set(uint32_t flags)
+ret_t EventFlag::set(uint32_t flags)
 {
 	if(m_handle == kInvalidEventFlagHandle) {
 		return kEDisposed;
@@ -222,7 +222,7 @@ ret_t EventFlags::set(uint32_t flags)
 	return kfw_convert_er(er);
 }
 
-ret_t EventFlags::clear(uint32_t pattern)
+ret_t EventFlag::clear(uint32_t pattern)
 {
 	if(m_handle == kInvalidEventFlagHandle) {
 		return kEDisposed;
@@ -233,7 +233,7 @@ ret_t EventFlags::clear(uint32_t pattern)
 	return kfw_convert_er(er);
 }
 
-ret_t EventFlags::wait(uint32_t pattern, EventFlagsWaitMode mode,
+ret_t EventFlag::wait(uint32_t pattern, EventFlagWaitMode mode,
 		uint32_t &flag_pattern,
 		timeout_t timeout_ms)
 {
@@ -249,7 +249,7 @@ ret_t EventFlags::wait(uint32_t pattern, EventFlagsWaitMode mode,
 	return kfw_convert_er(er);
 }
 
-ret_t EventFlags::ser_isr(uint32_t pattern)
+ret_t EventFlag::set_isr(uint32_t pattern)
 {
 	if(m_handle == kInvalidEventFlagHandle) {
 		return kEDisposed;
@@ -259,6 +259,198 @@ ret_t EventFlags::ser_isr(uint32_t pattern)
 
 	return kfw_convert_er(er);
 }
+
+//--- FixedMemoryPool class ---
+ret_t FixedMemoryPool::create(uint32_t block_size, uint32_t block_count)
+{
+	if(m_buffer != nullptr) {
+		return kEInvalidOperation;
+	}
+
+	uint32_t buffer_size = block_size * block_count;
+	m_buffer = new uint8_t[buffer_size];
+	m_allocated_buffer_size = 0;
+	m_buffer_size = buffer_size;
+	m_block_size = block_size;
+
+	m_sem.create(block_count, 0xFFFFFFFF);
+
+	return kOk;
+}
+
+void FixedMemoryPool::dispose()
+{
+	if(m_buffer == nullptr) {
+		return;
+	}
+
+	m_sem.dispose();
+
+	delete m_buffer;
+	m_buffer = nullptr;
+}
+
+ret_t FixedMemoryPool::get(void **block, timeout_t timeout_ms)
+{
+	if(m_buffer == nullptr) {
+		return kEInvalidOperation;
+	}
+
+	ret_t r;
+	void *p;
+
+	r = m_sem.wait(timeout_ms);
+	if(is_failed(r)) {
+		return r;
+	}
+
+	loc_cpu();
+
+	if(m_allocated_buffer_size != m_buffer_size) {
+		p = &m_buffer[m_allocated_buffer_size];
+		m_allocated_buffer_size += m_block_size;
+	} else {
+		p = m_free_list;
+		m_free_list = m_free_list->m_next;
+	}
+
+	unl_cpu();
+
+	*block = p;
+
+	return kOk;
+}
+
+ret_t FixedMemoryPool::get_isr(void **block)
+{
+	if(m_buffer == nullptr) {
+		return kEInvalidOperation;
+	}
+
+	ret_t r;
+	void *p;
+
+	r = m_sem.release_isr();
+	if(is_failed(r)) {
+		return r;
+	}
+
+	loc_cpu();
+
+	if(m_allocated_buffer_size != m_buffer_size) {
+		p = &m_buffer[m_allocated_buffer_size];
+		m_allocated_buffer_size += m_block_size;
+	} else {
+		p = m_free_list;
+		m_free_list = m_free_list->m_next;
+	}
+
+	unl_cpu();
+
+	*block = p;
+
+	return kOk;
+}
+ret_t FixedMemoryPool::release(void *block)
+{
+	if(m_buffer == nullptr) {
+		return kEInvalidOperation;
+	}
+
+	ret_t r = m_sem.release();
+	if(is_failed(r)) {
+		return r;
+	}
+
+	loc_cpu();
+
+	FixedMemoryPoolBlock *b = (FixedMemoryPoolBlock *)block;
+
+	b->m_next = m_free_list;
+	m_free_list = b;
+
+	unl_cpu();
+
+	return kOk;
+}
+
+//--- DataQueue class ---
+
+ret_t DataQueue::create(uint32_t queue_count)
+{
+	if(m_handle != 0) {
+		return kEInvalidOperation;
+	}
+
+	T_CDTQ cdtq = {0};
+
+	cdtq.dtq = nullptr;
+	cdtq.dtqatr = TA_TFIFO;
+	cdtq.dtqcnt = queue_count;
+
+	ER_ID er_id = acre_dtq(&cdtq);
+	if(er_id <= 0) {
+		return kEResource;
+	}
+
+	m_handle = (ID)er_id;
+
+	return kOk;
+}
+
+void DataQueue::dispose()
+{
+	if(m_handle == 0) {
+		return;
+	}
+
+	del_dtq(m_handle);
+	m_handle = 0;
+}
+
+ret_t DataQueue::send(uintptr_t data, timeout_t timeout_ms)
+{
+	if(m_handle == 0) {
+		return kEDisposed;
+	}
+
+	ER er = tsnd_dtq(m_handle, (VP_INT)data, convert_timeout(timeout_ms));
+	if(er != E_OK) {
+		return kfw_convert_er(er);
+	}
+
+	return kOk;
+}
+
+ret_t DataQueue::recv(uintptr_t &data, timeout_t timeout_ms)
+{
+	if(m_handle == 0) {
+		return kEDisposed;
+	}
+
+	ER er = trcv_dtq(m_handle, (VP_INT *)&data, convert_timeout(timeout_ms));
+	if(er != E_OK) {
+		return kfw_convert_er(er);
+	}
+
+	return kOk;
+}
+
+ret_t DataQueue::send_isr(uintptr_t data)
+{
+	if(m_handle == 0) {
+		return kEDisposed;
+	}
+
+	ER er = ipsnd_dtq(m_handle, (VP_INT)data);
+	if(er != E_OK) {
+		return kfw_convert_er(er);
+	}
+
+	return kOk;
+}
+
+//--- ThreadContext class ---
 
 template<typename T> inline T align_down(T value, T align)
 {
@@ -382,7 +574,7 @@ ret_t Thread::join() {
 		return kEDisposed;
 	}
 
-	ret_t r = m_context->m_join_flag.wait(1, EventFlagsWaitMode::kAnd);
+	ret_t r = m_context->m_join_flag.wait(1, EventFlagWaitMode::kAnd);
 
 	return r;
 }
@@ -419,6 +611,126 @@ ret_t Thread::get_priority(priority_t &value)
 void Thread::sleep(uint32_t ms)
 {
 	kos_dly_tsk(ms);
+}
+
+//--- ThreadPool class ---
+struct ThreadPoolWorkItem
+{
+	Callback<void()> m_func;
+};
+
+class ThreadPool final : private NonCopyable
+{
+public:
+	ThreadPool() {}
+
+	ret_t start();
+
+	ret_t queue_work_item_isr(const Callback<void()> &func);
+
+private:
+
+	void thread_main();
+
+	Thread m_threads[2];
+	DataQueue m_queue;
+	FixedMemoryPool m_pool;
+};
+
+ret_t ThreadPool::start() {
+
+	m_pool.create(sizeof(ThreadPoolWorkItem), 32);
+
+	m_queue.create(32);
+
+	for(int i = 0; i < 2; i++) {
+		Thread &thread = m_threads[i];
+		thread.create(Callback<void ()>(this, &ThreadPool::thread_main), kPriorityNormal, 4096);
+		thread.start();
+	}
+
+	return kOk;
+}
+
+void ThreadPool::thread_main() {
+	for(;;) {
+		uintptr_t data;
+		ret_t r = m_queue.recv(data);
+		if(is_failed(r)) {
+			break;
+		}
+
+		ThreadPoolWorkItem *work_item = (ThreadPoolWorkItem *)data;
+
+		work_item->m_func();
+
+		delete work_item;
+	}
+}
+
+ret_t ThreadPool::queue_work_item_isr(const Callback<void()> &func)
+{
+	ThreadPoolWorkItem *work_item;
+	ret_t r = m_pool.get_isr((void **)&work_item);
+	if(is_failed(r)) {
+		return r;
+	}
+
+	work_item->m_func = func;
+
+	r = m_queue.send_isr((uintptr_t)work_item);
+	if(is_failed(r)) {
+		m_pool.release(work_item);
+		return r;
+	}
+	return kOk;
+}
+
+static ThreadPool m_timer_thread_ppol;
+
+//--- Timer class ---
+ret_t Timer::create(const Callback<void()> &func,
+		uint32_t interval)
+{
+	T_CCYC ccyc = {0};
+	ccyc.cycatr = 0;
+	ccyc.cyctim = interval;
+	ccyc.cychdr = (VP)Timer::handler_entry;
+
+	ER_ID er_id = acre_cyc(&ccyc);
+	if(er_id != E_OK) {
+		return kEUnknown;
+	}
+
+	m_handle = er_id;
+
+	return kOk;
+}
+
+void Timer::dispose() {
+	if(m_handle == 0) return;
+	del_cyc(m_handle);
+	m_handle = 0;
+}
+
+ret_t Timer::start()
+{
+	sta_cyc(m_handle);
+	return kOk;
+}
+void Timer::stop()
+{
+	stp_cyc(m_handle);
+}
+
+void Timer::handler_entry(Timer *obj)
+{
+	m_timer_thread_ppol.queue_work_item_isr(obj->m_func);
+}
+
+void kfw_rtos_static_init()
+{
+	m_timer_thread_ppol.start();
 }
 
 };};

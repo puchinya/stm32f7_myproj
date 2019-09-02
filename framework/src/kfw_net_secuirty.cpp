@@ -1,6 +1,19 @@
 
 #include "kfw_net_security.hpp"
 
+#define DEBUG_LEVEL	1
+
+#if DEBUG_LEVEL > 0
+#include <mbedtls/debug.h>
+extern "C" {
+    static void my_debug(void *ctx, int level, const char *file, int line,
+                         const char *str);
+    static int my_verify(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags);
+};
+#include <stdio.h>
+#define mbedtls_printf printf
+#endif
+
 namespace kfw { namespace net {
 
 extern "C" {
@@ -129,6 +142,12 @@ ret_t TlsStream::authenticate_as_client(const ConstStringRef &target_host,
 	mbedtls_ssl_conf_authmode(&m_ssl_conf, MBEDTLS_SSL_VERIFY_REQUIRED);
 	mbedtls_ssl_conf_verify(&m_ssl_conf, ssl_verify_clink, this);
 
+#if DEBUG_LEVEL > 0
+	//mbedtls_ssl_conf_verify(&m_ssl_conf, my_verify, NULL);
+	mbedtls_ssl_conf_dbg(&m_ssl_conf, my_debug, NULL);
+	mbedtls_debug_set_threshold(DEBUG_LEVEL);
+#endif
+
 	ssl_ret = mbedtls_ssl_setup(&m_ssl, &m_ssl_conf);
 	if(ssl_ret != 0) {
 		return kEUnknown;
@@ -147,12 +166,17 @@ ret_t TlsStream::authenticate_as_client(const ConstStringRef &target_host,
 			ssl_send_clink, ssl_recv_clink, nullptr);
 
 	// start handshake
-	do {
+	for(;;) {
 		ssl_ret = mbedtls_ssl_handshake(&m_ssl);
-	} while(ssl_ret != 0 &&
-            (ssl_ret == MBEDTLS_ERR_SSL_WANT_READ ||
-            		ssl_ret == MBEDTLS_ERR_SSL_WANT_WRITE));
-	if(ssl_ret < 0) {
+		if(ssl_ret != 0 &&
+				(ssl_ret == MBEDTLS_ERR_SSL_WANT_READ || ssl_ret == MBEDTLS_ERR_SSL_WANT_WRITE))
+		{
+			continue;
+		}
+		break;
+	}
+
+	if(ssl_ret != 0) {
 		return kEUnknown;
 	}
 
@@ -167,6 +191,8 @@ int TlsStream::ssl_send(void *ctx, const unsigned char *buf, size_t len)
 
 	auto r = s->write(buf, len);
 
+	printf("ssl_send %08X, %d\n", r.ret, r.val);
+
 	return r.val;
 }
 
@@ -175,6 +201,8 @@ int TlsStream::ssl_recv(void *ctx, unsigned char *buf, size_t len)
 	SocketStream *s = (SocketStream *)ctx;
 
 	auto r = s->read(buf, len);
+
+	printf("ssl_recv %08X, %d\n", r.ret, r.val);
 
 	return r.val;
 }
@@ -223,4 +251,58 @@ void X509Certificate::dispose()
 	m_is_created = false;
 }
 
+void kfw_net_secuirty_static_init()
+{
+
+}
 }}
+
+
+#if DEBUG_LEVEL > 0
+    /**
+     * Debug callback for mbed TLS
+     * Just prints on the USB serial port
+     */
+    static void my_debug(void *ctx, int level, const char *file, int line,
+                         const char *str)
+    {
+        const char *p, *basename;
+        (void) ctx;
+
+        /* Extract basename from file */
+        for(p = basename = file; *p != '\0'; p++) {
+            if(*p == '/' || *p == '\\') {
+                basename = p + 1;
+            }
+        }
+
+        mbedtls_printf("%s:%04d: |%d| %s", basename, line, level, str);
+    }
+
+    /**
+     * Certificate verification callback for mbed TLS
+     * Here we only use it to display information on each cert in the chain
+     */
+    static int my_verify(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
+    {
+        const uint32_t buf_size = 1024;
+        char *buf = new char[buf_size];
+        (void) data;
+
+        mbedtls_printf("\nVerifying certificate at depth %d:\n", depth);
+        mbedtls_x509_crt_info(buf, buf_size - 1, "  ", crt);
+        //mbedtls_printf("%s", buf);
+
+        if (*flags == 0)
+            mbedtls_printf("No verification issue for this certificate\n");
+        else
+        {
+            mbedtls_x509_crt_verify_info(buf, buf_size, "  ! ", *flags);
+            mbedtls_printf("%s\n", buf);
+        }
+
+        delete[] buf;
+        return 0;
+    }
+#endif
+

@@ -4,7 +4,6 @@
 #define KFW_RTOS_HPP
 
 #include <kfw_common.hpp>
-#include <kfw_callback.hpp>
 #include <itron.h>
 
 #ifndef CFG_KFW_RTOS_RAISE_SYSTEM_ERROR_WHEN_FATAL_ERROR
@@ -89,7 +88,7 @@ namespace kfw { namespace rtos {
 	/**
 	 *
 	 */
-	enum class EventFlagsWaitMode : MODE
+	enum class EventFlagWaitMode : MODE
 	{
 		kAnd = TWF_ANDW,
 		kOr = TWF_ORW
@@ -98,56 +97,117 @@ namespace kfw { namespace rtos {
 	/**
 	 *
 	 */
-	class EventFlags final : private NonCopyable
+	class EventFlag final : private NonCopyable
 	{
 	public:
-		EventFlags() : m_handle(kInvalidEventFlagHandle) {}
-		~EventFlags() {
+		EventFlag() : m_handle(kInvalidEventFlagHandle) {}
+		~EventFlag() {
 			dispose();
 		}
 
 		ret_t create(uint32_t pattern = 0);
 		void dispose();
 
+		/**
+		 * @brief フラグパターンを設定します。(スレッドコンテキスト用)
+		 */
 		ret_t set(uint32_t pattern);
+
+		/**
+		 * @brief フラグパターンをクリアします。(スレッドコンテキスト用)
+		 */
 		ret_t clear(uint32_t pattern = 0);
-		ret_t wait(uint32_t pattern, EventFlagsWaitMode mode,
+		ret_t wait(uint32_t pattern, EventFlagWaitMode mode,
 				uint32_t &flag_pattern,
 				timeout_t timeout_ms = kTimeoutInfinity);
-		ret_t wait(uint32_t pattern, EventFlagsWaitMode mode,
+		ret_t wait(uint32_t pattern, EventFlagWaitMode mode,
 				timeout_t timeout_ms = kTimeoutInfinity)
 		{
 			uint32_t flag_pattern;
 			return wait(pattern, mode, flag_pattern, timeout_ms);
 		}
-		ret_t ser_isr(uint32_t pattern);
+
+		/**
+		 * @brief フラグパターンを設定します。(割り込みサービスルーチン用)
+		 */
+		ret_t set_isr(uint32_t pattern);
 	private:
 		eventflag_handle_t m_handle;
 	};
 
-	class MemoryPool final : private NonCopyable
+	struct FixedMemoryPoolBlock
+	{
+		FixedMemoryPoolBlock	*m_next;
+		uint8_t					m_data[1];
+	};
+
+	class FixedMemoryPool final : private NonCopyable
 	{
 	public:
-		MemoryPool();
-		~MemoryPool();
+		FixedMemoryPool()
+		: m_buffer(nullptr), m_allocated_buffer_size(0),
+		  m_buffer_size(0), m_block_size(0), m_free_list(nullptr)
+		{
+
+		}
+
+		~FixedMemoryPool() {
+			dispose();
+		}
 
 		ret_t create(uint32_t block_size, uint32_t block_count);
-		ret_t dispose();
+		void dispose();
 
 		ret_t get(void **block, timeout_t timeout_ms = kTimeoutInfinity);
+		ret_t get_isr(void **block);
 		ret_t release(void *block);
 
-		uint32_t get_block_size() const;
+		uint32_t get_block_size() const {
+			return m_block_size;
+		}
+	private:
+		uint8_t *m_buffer;
+		uint32_t m_allocated_buffer_size;
+		uint32_t m_buffer_size;
+		uint32_t m_block_size;
+		FixedMemoryPoolBlock *m_free_list;
+		Semaphore m_sem;
 	};
 
 	class DataQueue final : private NonCopyable
 	{
 	public:
-		ret_t create(uint32_t ququ_count);
-		ret_t dispose();
+		DataQueue()
+		: m_handle(0) {}
+		~DataQueue() {
+			dispose();
+		}
 
+		/**
+		 * @brief データキューオブジェクトの初期化を行います。
+		 * @param[in]	queue_count	キューの長さ
+		 * @retval	kOk					成功
+		 * @retval	kEInvalidOperation	すでに初期化済み
+		 * @retval	kEResouece			OSリソースの確保に失敗。
+		 */
+		ret_t create(uint32_t queue_count);
+
+		/**
+		 * @brief オブジェクトにて解放しているリソースを破棄します。
+		 */
+		void dispose();
+
+		/**
+		 *	@brief	データキューにデータを入れます。
+		 *	@param[in]	data		キューに入れるデータ
+		 *	@param[in]	timeout_ms	キューに空きが出るまでのタイムアウト時間[ms]
+		 *	@retval		kOk			成功
+		 *	@retval		0未満		エラー
+		 *	キューに空きがない時にはキューに空きができるまで、待機します。
+		 */
 		ret_t send(uintptr_t data, timeout_t timeout_ms = kTimeoutInfinity);
 		ret_t recv(uintptr_t &data, timeout_t timeout_ms = kTimeoutInfinity);
+		ret_t send_isr(uintptr_t data);
 	private:
 		ID m_handle;
 	};
@@ -164,7 +224,7 @@ namespace kfw { namespace rtos {
 
 		thread_handle_t m_handle;
 		Callback<void()> m_func;
-		EventFlags m_join_flag;
+		EventFlag m_join_flag;
 
 		static void entry_point(kos_vp_t p);
 
@@ -203,6 +263,29 @@ namespace kfw { namespace rtos {
 		static void sleep(uint32_t ms);
 	};
 
+	// @TODO
+	class Timer final : private NonCopyable
+	{
+	public:
+		Timer() : m_handle(0) {
+
+		}
+		~Timer() {
+			dispose();
+		}
+
+		ret_t create(const Callback<void()> &func,
+				uint32_t interval);
+		void dispose();
+		ret_t start();
+		void stop();
+	private:
+		Callback<void()> m_func;
+		ID m_handle;
+		static void handler_entry(Timer *obj);
+	};
+
+	void kfw_rtos_static_init();
 };};
 
 #endif
